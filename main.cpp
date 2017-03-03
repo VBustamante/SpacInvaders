@@ -2,110 +2,20 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <fstream>
-#include <vector>
 #include <ctime>
+
+#include "shaderManager.h"
 
 using namespace std;
 
 // Returns shaderId or 0 on error
-GLuint loadShader(const char *shaderFilePath, GLuint shaderType){
-  ifstream file;
-  
-  file.open(shaderFilePath, ifstream::in);
-
-  if(!file.good()) return 0;
-
-  // Calculate file size
-  unsigned long fileSize;
-  file.seekg(0, ios::end);
-  fileSize = file.tellg();
-  // Reset cursor
-  file.seekg(ios::beg);
-
-  GLchar *shaderText = new char[fileSize + 1];
-  unsigned int fileCursor = 0;
-  while(file.good()){
-    shaderText[fileCursor] = (GLchar) file.get();
-    if (!file.eof()) fileCursor++;
-  }
-
-  shaderText[fileCursor] = '\0';
-
-  file.close();
-
-  GLuint fragmentShaderId = glCreateShader(shaderType);
-  glShaderSource(fragmentShaderId, 1, (const GLchar**)&shaderText, NULL);
-  glCompileShader(fragmentShaderId);
-
-  GLint shaderCompiled;
-  glGetShaderiv(fragmentShaderId, GL_COMPILE_STATUS, &shaderCompiled);
-
-  if(shaderCompiled == GL_FALSE){
-    GLint maxLength = 0;
-    glGetShaderiv(fragmentShaderId, GL_INFO_LOG_LENGTH, &maxLength);
-
-    GLchar *errorLog = new char[maxLength];
-    glGetShaderInfoLog(fragmentShaderId, maxLength, &maxLength, errorLog);
-
-    cerr << "Shader Error: " << endl << errorLog;
-
-    glDeleteShader(fragmentShaderId);
-    fragmentShaderId = 0;
-  }
-  return fragmentShaderId;
-}
+GLuint loadShader(const char *shaderFilePath, GLuint shaderType);
 
 //get shader directory
-const char *shaderRelativePath= "\\..\\shaders";
-HANDLE reloadShadersAndStartWatcher(GLuint* shaderProgramId, HANDLE *shaderModificationHandler){
+GLchar *stringifyShader(const char shaderFile[]);
 
-  unsigned shaderDirLength = GetCurrentDirectory(0, NULL);
-  unsigned shaderRelativePathLength = strlen(shaderRelativePath);
-  GLchar *shaderDir = new char[ shaderDirLength + shaderRelativePathLength ];
-  GetCurrentDirectory(shaderDirLength, shaderDir);
-  for(int i = 0; i< shaderRelativePathLength; i++){
-    shaderDir[shaderDirLength + i - 1] = shaderRelativePath[i];
-  }
-  shaderDir[shaderDirLength + shaderRelativePathLength + 1] = '\0';
+HANDLE reloadShadersAndStartWatcher(GLuint* shaderProgramId, HANDLE *shaderModificationHandler);
 
-  if(*shaderModificationHandler){
-    cout<<"old handle"<< endl;
-    if(!FindNextChangeNotification(*shaderModificationHandler)){
-      cout<<"old handle"<< endl;
-
-    };
-  }else{
-    cout << "New handle" << endl;
-    *shaderModificationHandler = FindFirstChangeNotification(
-        shaderDir,
-        FALSE, // Don't watch recursively
-        FILE_NOTIFY_CHANGE_LAST_WRITE);
-
-    if (*shaderModificationHandler == INVALID_HANDLE_VALUE)
-    {
-      cout <<  "ERROR: FindFirstChangeNotification function failed.\n" ;
-      cout << GetLastError();
-    }
-  }
-
-  // COMPILE SHADERS
-  cout << "Compiling fragment shader" << endl;
-  GLuint fragmentShaderId = loadShader("../shaders/mainF.glsl", GL_FRAGMENT_SHADER);
-  cout << "Compiling vertex shader" << endl;
-  GLuint vertexShaderId = loadShader("../shaders/mainV.glsl", GL_VERTEX_SHADER);
-
-  if(!vertexShaderId || !fragmentShaderId){
-    cerr << "Failed to compile a shader" << endl;
-  }
-
-  if(*shaderProgramId > 0) glDeleteProgram(*shaderProgramId);
-  *shaderProgramId = glCreateProgram();
-  glAttachShader(*shaderProgramId, vertexShaderId);
-  glAttachShader(*shaderProgramId, fragmentShaderId);
-  glLinkProgram(*shaderProgramId);
-
-  return shaderModificationHandler;
-}
 
 int main() {
   // INITIALIZE FOUNDATIONS
@@ -159,8 +69,15 @@ int main() {
   // SHADER SETUP
   GLuint shaderProgram = 0;
   HANDLE handleShaderRefresh = NULL;
+  //Shader Texts before and after
+  GLchar *shaderTexts[2][2];
+  // Startup Shader
+  shaderTexts[0][0] = stringifyShader("../shaders/mainF.glsl");
+  shaderTexts[1][0] = stringifyShader("../shaders/mainV.glsl");
+  BOOL shaderChanged = false;
   reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
   glUseProgram(shaderProgram);
+
 
   // INFO DUMPS
   {
@@ -173,6 +90,8 @@ int main() {
   // APPLICATION VARIABLES
   time_t startup = time(NULL);
   time_t intervalTimer;
+  time_t fileChanged = startup;
+  time_t frameCounter = 0;
   const unsigned logInterval = 1000;
 
   // MAIN LOOP
@@ -183,23 +102,175 @@ int main() {
 
     //SHADER HOTLOADING
     DWORD waitStatus = WaitForSingleObject(handleShaderRefresh, 0);
-    if(waitStatus == WAIT_OBJECT_0){
+    if(waitStatus == WAIT_OBJECT_0 && !shaderChanged){
       cout << "changed shader" << endl;
-      reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
-      glUseProgram(shaderProgram);
+      shaderChanged = true;
+      fileChanged = time(NULL);
+      frameCounter = 0;
+    }
+    // We have to wait till the files have changed after
+    // the Handle notifies us that the files have changed.
+    // Yup.
+    if(shaderChanged){
+      shaderTexts[1][0] = stringifyShader("../shaders/mainF.glsl");
+      shaderTexts[1][1] = stringifyShader("../shaders/mainV.glsl");
+      if(strcmp(shaderTexts[0][0], shaderTexts[1][0])){
+        cout << "took " << time(NULL) - fileChanged << "ms ("<<frameCounter<<" frames)"<<endl;
+
+        reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
+        glUseProgram(shaderProgram);
+
+
+        if(!FindNextChangeNotification(handleShaderRefresh)){
+          cout <<  "ERROR: Error setting handler" << endl;
+          cout << GetLastError();
+        };
+
+        //cout << shaderTexts[1][0] << endl;
+        //cout << shaderTexts[1][1] << endl;
+        delete shaderTexts[0][0];
+        delete shaderTexts[0][1];
+        shaderTexts[0][0] = shaderTexts[1][0];
+        shaderTexts[0][1] = shaderTexts[1][1];
+
+        shaderChanged = false;
+      }
+      frameCounter++;
     }
 
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
-
+    //frameCounter++;
+    //if(frameCounter % 10) cout << "Time: " <<  <<endl;
 
     //Call Callbacks and Refresh display
     glfwPollEvents();
     glfwSwapBuffers(window);
   }
 
+  // CLEANUP
+  FindCloseChangeNotification(handleShaderRefresh);
   glfwTerminate();
 
   return 0;
+}
+
+GLchar *stringifyShader(const char *shaderFile) {
+  ifstream bootfile;
+  bootfile.open(shaderFile, ifstream::in);
+  // Calculate file size
+  unsigned long fileSize;
+  bootfile.seekg(0, ios::end);
+  fileSize = bootfile.tellg();
+  // Reset cursor
+  bootfile.seekg(ios::beg);
+
+  GLchar *ShaderText = new char[fileSize + 1];
+  unsigned int fileCursor = 0;
+  while(bootfile.good()){
+    ShaderText[fileCursor] = (GLchar) bootfile.get();
+    if (!bootfile.eof()) fileCursor++;
+  }
+  ShaderText[fileCursor] = '\0';
+  bootfile.close();
+
+  return ShaderText;
+}
+
+const char *shaderRelativePath= "\\..\\shaders";
+HANDLE reloadShadersAndStartWatcher(GLuint *shaderProgramId, HANDLE *shaderModificationHandler) {
+
+  unsigned shaderDirLength = GetCurrentDirectory(0, NULL);
+  unsigned shaderRelativePathLength = strlen(shaderRelativePath);
+  GLchar *shaderDir = new char[ shaderDirLength + shaderRelativePathLength ];
+  GetCurrentDirectory(shaderDirLength, shaderDir);
+  for(int i = 0; i< shaderRelativePathLength; i++){
+    shaderDir[shaderDirLength + i - 1] = shaderRelativePath[i];
+  }
+  shaderDir[shaderDirLength + shaderRelativePathLength + 1] = '\0';
+
+  if(*shaderModificationHandler){
+    if(!FindNextChangeNotification(*shaderModificationHandler)){
+      cout <<  "ERROR: Error setting handler" << endl;
+      cout << GetLastError();
+    };
+  }else{
+    *shaderModificationHandler = FindFirstChangeNotification(
+        shaderDir,
+        FALSE, // Don't watch recursively
+        FILE_NOTIFY_CHANGE_SIZE);
+
+    if (*shaderModificationHandler == INVALID_HANDLE_VALUE)
+    {
+      cout <<  "ERROR: Error setting handler" << endl;
+      cout << GetLastError();
+    }
+  }
+
+  // COMPILE SHADERS
+  cout << "Compiling fragment shader" << endl;
+  GLuint fragmentShaderId = loadShader("../shaders/mainF.glsl", GL_FRAGMENT_SHADER);
+  cout << "Compiling vertex shader" << endl;
+  GLuint vertexShaderId = loadShader("../shaders/mainV.glsl", GL_VERTEX_SHADER);
+
+  if(!vertexShaderId || !fragmentShaderId){
+    cerr << "Failed to compile a shader" << endl;
+  }
+
+  if(*shaderProgramId > 0) glDeleteProgram(*shaderProgramId);
+  *shaderProgramId = glCreateProgram();
+  glAttachShader(*shaderProgramId, vertexShaderId);
+  glAttachShader(*shaderProgramId, fragmentShaderId);
+  glLinkProgram(*shaderProgramId);
+
+  return shaderModificationHandler;
+}
+
+GLuint loadShader(const char *shaderFilePath, GLuint shaderType) {
+  ifstream file;
+
+  file.open(shaderFilePath, ifstream::in);
+
+  if(!file.good()) return 0;
+
+  // Calculate file size
+  unsigned long fileSize;
+  file.seekg(0, ios::end);
+  fileSize = file.tellg();
+  // Reset cursor
+  file.seekg(ios::beg);
+
+  GLchar *shaderText = new char[fileSize + 1];
+  unsigned int fileCursor = 0;
+  while(file.good()){
+    shaderText[fileCursor] = (GLchar) file.get();
+    if (!file.eof()) fileCursor++;
+  }
+
+  shaderText[fileCursor] = '\0';
+  file.close();
+
+  //cout << "Shader text:" << endl<<shaderText<<endl;
+
+  GLuint fragmentShaderId = glCreateShader(shaderType);
+  glShaderSource(fragmentShaderId, 1, (const GLchar**)&shaderText, NULL);
+  glCompileShader(fragmentShaderId);
+
+  GLint shaderCompiled;
+  glGetShaderiv(fragmentShaderId, GL_COMPILE_STATUS, &shaderCompiled);
+
+  if(shaderCompiled == GL_FALSE){
+    GLint maxLength = 0;
+    glGetShaderiv(fragmentShaderId, GL_INFO_LOG_LENGTH, &maxLength);
+
+    GLchar *errorLog = new char[maxLength];
+    glGetShaderInfoLog(fragmentShaderId, maxLength, &maxLength, errorLog);
+
+    cerr << "Shader Error: " << endl << errorLog;
+
+    glDeleteShader(fragmentShaderId);
+    fragmentShaderId = 0;
+  }
+  return fragmentShaderId;
 }

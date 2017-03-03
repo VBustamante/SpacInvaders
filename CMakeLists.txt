@@ -21,11 +21,13 @@ include_directories(libs/glfw-3.2.1/include)
 add_subdirectory(libs/gl3w-master)
 include_directories(libs/gl3w-master/include)
 
+include_directories(libs/mingw-std-threads-master)
+
 # Copy Resources
 file(COPY shaders DESTINATION ./)
 
 
-set(SOURCE_FILES main.cpp)
+set(SOURCE_FILES main.cpp shaderManager.cpp)
 add_executable(SpacInvaders ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/resources/Program.rc)
 
 target_link_libraries(SpacInvaders glfw ${GLFW_LIBRARIES} gl3w ${OPENGL_gl_LIBRARY})
