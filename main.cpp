@@ -3,24 +3,9 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <ctime>
 
 using namespace std;
-
-const char* vertexShader =
-  "#version 400\n"
-  "in vec3 vp;"
-  "void main(){"
-  "   float y = vp.y;"
-      "if(vp.y > 0) y *= -.5;"
-  "   gl_Position = vec4(vp.x, y, vp.z, 1.0);"
-  "}";
-
-const char* fragmentShader =
-    "#version 400\n"
-    "out vec4 frag_color;"
-    "void main(){"
-    "   frag_color = vec4(.5, 1, .5, 1.0);"
-    "}";
 
 // Returns shaderId or 0 on error
 GLuint loadShader(const char *shaderFilePath, GLuint shaderType){
@@ -70,9 +55,60 @@ GLuint loadShader(const char *shaderFilePath, GLuint shaderType){
   return fragmentShaderId;
 }
 
+//get shader directory
+const char *shaderRelativePath= "\\..\\shaders";
+HANDLE reloadShadersAndStartWatcher(GLuint* shaderProgramId, HANDLE *shaderModificationHandler){
+
+  unsigned shaderDirLength = GetCurrentDirectory(0, NULL);
+  unsigned shaderRelativePathLength = strlen(shaderRelativePath);
+  GLchar *shaderDir = new char[ shaderDirLength + shaderRelativePathLength ];
+  GetCurrentDirectory(shaderDirLength, shaderDir);
+  for(int i = 0; i< shaderRelativePathLength; i++){
+    shaderDir[shaderDirLength + i - 1] = shaderRelativePath[i];
+  }
+  shaderDir[shaderDirLength + shaderRelativePathLength + 1] = '\0';
+
+  if(*shaderModificationHandler){
+    cout<<"old handle"<< endl;
+    if(!FindNextChangeNotification(*shaderModificationHandler)){
+      cout<<"old handle"<< endl;
+
+    };
+  }else{
+    cout << "New handle" << endl;
+    *shaderModificationHandler = FindFirstChangeNotification(
+        shaderDir,
+        FALSE, // Don't watch recursively
+        FILE_NOTIFY_CHANGE_LAST_WRITE);
+
+    if (*shaderModificationHandler == INVALID_HANDLE_VALUE)
+    {
+      cout <<  "ERROR: FindFirstChangeNotification function failed.\n" ;
+      cout << GetLastError();
+    }
+  }
+
+  // COMPILE SHADERS
+  cout << "Compiling fragment shader" << endl;
+  GLuint fragmentShaderId = loadShader("../shaders/mainF.glsl", GL_FRAGMENT_SHADER);
+  cout << "Compiling vertex shader" << endl;
+  GLuint vertexShaderId = loadShader("../shaders/mainV.glsl", GL_VERTEX_SHADER);
+
+  if(!vertexShaderId || !fragmentShaderId){
+    cerr << "Failed to compile a shader" << endl;
+  }
+
+  if(*shaderProgramId > 0) glDeleteProgram(*shaderProgramId);
+  *shaderProgramId = glCreateProgram();
+  glAttachShader(*shaderProgramId, vertexShaderId);
+  glAttachShader(*shaderProgramId, fragmentShaderId);
+  glLinkProgram(*shaderProgramId);
+
+  return shaderModificationHandler;
+}
 
 int main() {
-  // INIT
+  // INITIALIZE FOUNDATIONS
   if(!glfwInit()){
     cerr << "ERROR: Could not start glfw" << endl;
     return 1;
@@ -85,7 +121,6 @@ int main() {
     glfwTerminate();
     return 1;
   }
-
   glfwMakeContextCurrent(window);
 
   if (gl3wInit()) {
@@ -97,15 +132,12 @@ int main() {
     return -1;
   }
 
-  const GLubyte *renderer = glGetString(GL_RENDERER);
-  const GLubyte *version = glGetString(GL_VERSION);
-  cout << "Renderer: " << renderer << endl;
-  cout << "OpenGL version: " << version << endl;
-
+  // INITIAL CONFIGURATIONS
+  glfwSwapInterval(1);
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
 
-
+  // VERTICES SETUP
   float points[] = {
     0.f, 0.f, 0.f,
     1.f, 1.f, 0.f,
@@ -124,21 +156,24 @@ int main() {
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 
-  // SHADERS
-  cout << "Compiling fragment shader" << endl;
-  GLuint fragmentShaderId = loadShader("../shaders/mainF.glsl", GL_FRAGMENT_SHADER);
-  cout << "Compiling vertex shader" << endl;
-  GLuint vertexShaderId = loadShader("../shaders/mainV.glsl", GL_VERTEX_SHADER);
+  // SHADER SETUP
+  GLuint shaderProgram = 0;
+  HANDLE handleShaderRefresh = NULL;
+  reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
+  glUseProgram(shaderProgram);
 
-  if(!vertexShaderId || !fragmentShaderId){
-    cerr << "Failed to compile a shader" << endl;
-    return -1;
+  // INFO DUMPS
+  {
+    const GLubyte *renderer = glGetString(GL_RENDERER);
+    const GLubyte *version = glGetString(GL_VERSION);
+    cout << "Renderer: " << renderer << endl;
+    cout << "OpenGL version: " << version << endl;
   }
 
-  GLuint shaderProgram = glCreateProgram();
-  glAttachShader(shaderProgram, fragmentShaderId);
-  glAttachShader(shaderProgram, vertexShaderId);
-  glLinkProgram(shaderProgram);
+  // APPLICATION VARIABLES
+  time_t startup = time(NULL);
+  time_t intervalTimer;
+  const unsigned logInterval = 1000;
 
   // MAIN LOOP
   while(!glfwWindowShouldClose(window))
@@ -146,11 +181,20 @@ int main() {
     glClearColor(.5f, 0.0f, .0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(shaderProgram);
+    //SHADER HOTLOADING
+    DWORD waitStatus = WaitForSingleObject(handleShaderRefresh, 0);
+    if(waitStatus == WAIT_OBJECT_0){
+      cout << "changed shader" << endl;
+      reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
+      glUseProgram(shaderProgram);
+    }
 
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
+
+
+    //Call Callbacks and Refresh display
     glfwPollEvents();
     glfwSwapBuffers(window);
   }
