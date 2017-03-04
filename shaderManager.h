@@ -4,6 +4,17 @@
 
 #ifndef SPACINVADERS_SHADERMANAGER_H
 #define SPACINVADERS_SHADERMANAGER_H
-void shaderManager();
+
+struct Shader{
+  char *text;
+};
+
+struct ShaderProgram{
+    GLuint id;
+    char *name;
+};
+
+void shaderLoad();
+void shaderHotLoad(Shader[]);
 
 #endif //SPACINVADERS_SHADERMANAGER_H

@@ -1,5 +1,7 @@
 #include <GL/gl3w.h>
 #include <GLFW/glfw3.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include <iostream>
 #include <fstream>
 #include <ctime>
@@ -16,7 +18,6 @@ GLchar *stringifyShader(const char shaderFile[]);
 
 HANDLE reloadShadersAndStartWatcher(GLuint* shaderProgramId, HANDLE *shaderModificationHandler);
 
-
 int main() {
   // INITIALIZE FOUNDATIONS
   if(!glfwInit()){
@@ -24,6 +25,9 @@ int main() {
     return 1;
   }
 
+  glfwWindowHint(GLFW_RESIZABLE, false);
+  glfwWindowHint(GLFW_FOCUSED, false);
+//  glfwWindowHint(GLFW_VISIBLE, false);
   GLFWwindow *window = glfwCreateWindow(640, 420, "Spac Invaders", NULL, NULL);
 
   if (!window) {
@@ -66,7 +70,27 @@ int main() {
   glBindBuffer(GL_ARRAY_BUFFER, vbo);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 
+  // Font Library Setup
+  FT_Library ft;
+  if(FT_Init_FreeType(&ft)) {
+    cout << "Failed to init freetype library" <<endl;
+    return 1;
+  }
+
+  FT_Face fontFace;
+  if(FT_New_Face(ft, "fonts/UbuntuMono-R.ttf", 0, &fontFace)){
+    cout << "Failed to load font" <<endl;
+    return 1;
+  }
+
   // SHADER SETUP
+  enum{
+      mainShaderProgram,
+      shaderProgramCount
+  };
+
+  Shader shaderSuite[shaderProgramCount];
+
   GLuint shaderProgram = 0;
   HANDLE handleShaderRefresh = NULL;
   //Shader Texts before and after
@@ -97,52 +121,53 @@ int main() {
   // MAIN LOOP
   while(!glfwWindowShouldClose(window))
   {
-    glClearColor(.5f, 0.0f, .0f, 1.f);
+    //glClearColor(.5f, 0.0f, .0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     //SHADER HOTLOADING
+    shaderHotLoad(shaderSuite);
+
     DWORD waitStatus = WaitForSingleObject(handleShaderRefresh, 0);
     if(waitStatus == WAIT_OBJECT_0 && !shaderChanged){
-      cout << "changed shader" << endl;
+      cout << "changed shader INLINE" << endl;
       shaderChanged = true;
       fileChanged = time(NULL);
       frameCounter = 0;
     }
-    // We have to wait till the files have changed after
-    // the Handle notifies us that the files have changed.
-    // Yup.
+
     if(shaderChanged){
-      shaderTexts[1][0] = stringifyShader("../shaders/mainF.glsl");
+      shaderTexts[0][1] = stringifyShader("../shaders/mainF.glsl");
       shaderTexts[1][1] = stringifyShader("../shaders/mainV.glsl");
-      if(strcmp(shaderTexts[0][0], shaderTexts[1][0])){
-        cout << "took " << time(NULL) - fileChanged << "ms ("<<frameCounter<<" frames)"<<endl;
+      if(
+          strcmp(shaderTexts[0][0], shaderTexts[0][1]) ||
+          strcmp(shaderTexts[1][0], shaderTexts[1][1])
+          ){
+        cout << "took " << time(NULL) - fileChanged << "ms ("<<frameCounter<<" frames) INLINE"<<endl;
 
         reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
         glUseProgram(shaderProgram);
 
-
         if(!FindNextChangeNotification(handleShaderRefresh)){
-          cout <<  "ERROR: Error setting handler" << endl;
+          cout <<  "ERROR INLINE: Error setting handler" << endl;
           cout << GetLastError();
         };
 
-        //cout << shaderTexts[1][0] << endl;
-        //cout << shaderTexts[1][1] << endl;
         delete shaderTexts[0][0];
-        delete shaderTexts[0][1];
-        shaderTexts[0][0] = shaderTexts[1][0];
-        shaderTexts[0][1] = shaderTexts[1][1];
+        delete shaderTexts[1][0];
+        shaderTexts[0][0] = shaderTexts[0][1];
+        shaderTexts[1][0] = shaderTexts[1][1];
 
         shaderChanged = false;
       }
       frameCounter++;
     }
 
+
+
+
+
     glBindVertexArray(vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
-
-    //frameCounter++;
-    //if(frameCounter % 10) cout << "Time: " <<  <<endl;
 
     //Call Callbacks and Refresh display
     glfwPollEvents();
@@ -188,12 +213,12 @@ HANDLE reloadShadersAndStartWatcher(GLuint *shaderProgramId, HANDLE *shaderModif
   for(int i = 0; i< shaderRelativePathLength; i++){
     shaderDir[shaderDirLength + i - 1] = shaderRelativePath[i];
   }
-  shaderDir[shaderDirLength + shaderRelativePathLength + 1] = '\0';
+  shaderDir[shaderDirLength + shaderRelativePathLength - 1] = '\0';
 
   if(*shaderModificationHandler){
     if(!FindNextChangeNotification(*shaderModificationHandler)){
-      cout <<  "ERROR: Error setting handler" << endl;
-      cout << GetLastError();
+      cout <<  "ERROR INLINE: Error setting handler" << endl;
+      cout << GetLastError() << endl;
     };
   }else{
     *shaderModificationHandler = FindFirstChangeNotification(
@@ -203,19 +228,19 @@ HANDLE reloadShadersAndStartWatcher(GLuint *shaderProgramId, HANDLE *shaderModif
 
     if (*shaderModificationHandler == INVALID_HANDLE_VALUE)
     {
-      cout <<  "ERROR: Error setting handler" << endl;
-      cout << GetLastError();
+      cout <<  "ERROR INLINE: Error setting handler" << endl;
+      cout << GetLastError() << endl;
     }
   }
 
   // COMPILE SHADERS
-  cout << "Compiling fragment shader" << endl;
+  cout << "Compiling fragment shader INLINE" << endl;
   GLuint fragmentShaderId = loadShader("../shaders/mainF.glsl", GL_FRAGMENT_SHADER);
-  cout << "Compiling vertex shader" << endl;
+  cout << "Compiling vertex shader INLINE" << endl;
   GLuint vertexShaderId = loadShader("../shaders/mainV.glsl", GL_VERTEX_SHADER);
 
   if(!vertexShaderId || !fragmentShaderId){
-    cerr << "Failed to compile a shader" << endl;
+    cerr << "Failed to compile a shader INLINE" << endl;
   }
 
   if(*shaderProgramId > 0) glDeleteProgram(*shaderProgramId);
