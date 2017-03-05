@@ -7,14 +7,12 @@
 #include <ctime>
 
 #include "shaderManager.h"
+#include "main.h"
 
 using namespace std;
 
 // Returns shaderId or 0 on error
 GLuint loadShader(const char *shaderFilePath, GLuint shaderType);
-
-//get shader directory
-GLchar *stringifyShader(const char shaderFile[]);
 
 HANDLE reloadShadersAndStartWatcher(GLuint* shaderProgramId, HANDLE *shaderModificationHandler);
 
@@ -84,13 +82,18 @@ int main() {
   }
 
   // SHADER SETUP
-  enum{
-      mainShaderProgram,
-      shaderProgramCount
-  };
+  ShaderProgram shaderSuite[shaderProgramCount];
 
-  Shader shaderSuite[shaderProgramCount];
+  ShaderProgram shaderProgramMainInstance;
+  setShaderProgramName(&shaderProgramMainInstance, "main");
+  shaderSuite[shaderProgramMain] = shaderProgramMainInstance;
 
+  ShaderProgram shaderProgramFontInstance;
+  setShaderProgramName(&shaderProgramFontInstance, "font");
+  shaderSuite[shaderProgramFont] = shaderProgramFontInstance;
+
+  shaderLoad(shaderSuite);
+  /*
   GLuint shaderProgram = 0;
   HANDLE handleShaderRefresh = NULL;
   //Shader Texts before and after
@@ -101,7 +104,7 @@ int main() {
   BOOL shaderChanged = false;
   reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
   glUseProgram(shaderProgram);
-
+  */
 
   // INFO DUMPS
   {
@@ -126,41 +129,42 @@ int main() {
 
     //SHADER HOTLOADING
     shaderHotLoad(shaderSuite);
+    glUseProgram(shaderSuite[shaderProgramMain].id);
 
-    DWORD waitStatus = WaitForSingleObject(handleShaderRefresh, 0);
-    if(waitStatus == WAIT_OBJECT_0 && !shaderChanged){
-      cout << "changed shader INLINE" << endl;
-      shaderChanged = true;
-      fileChanged = time(NULL);
-      frameCounter = 0;
-    }
-
-    if(shaderChanged){
-      shaderTexts[0][1] = stringifyShader("../shaders/mainF.glsl");
-      shaderTexts[1][1] = stringifyShader("../shaders/mainV.glsl");
-      if(
-          strcmp(shaderTexts[0][0], shaderTexts[0][1]) ||
-          strcmp(shaderTexts[1][0], shaderTexts[1][1])
-          ){
-        cout << "took " << time(NULL) - fileChanged << "ms ("<<frameCounter<<" frames) INLINE"<<endl;
-
-        reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
-        glUseProgram(shaderProgram);
-
-        if(!FindNextChangeNotification(handleShaderRefresh)){
-          cout <<  "ERROR INLINE: Error setting handler" << endl;
-          cout << GetLastError();
-        };
-
-        delete shaderTexts[0][0];
-        delete shaderTexts[1][0];
-        shaderTexts[0][0] = shaderTexts[0][1];
-        shaderTexts[1][0] = shaderTexts[1][1];
-
-        shaderChanged = false;
-      }
-      frameCounter++;
-    }
+//    DWORD waitStatus = WaitForSingleObject(handleShaderRefresh, 0);
+//    if(waitStatus == WAIT_OBJECT_0 && !shaderChanged){
+//      cout << "changed shader INLINE" << endl;
+//      shaderChanged = true;
+//      fileChanged = time(NULL);
+//      frameCounter = 0;
+//    }
+//
+//    if(shaderChanged){
+//      shaderTexts[0][1] = stringifyShader("../shaders/mainF.glsl");
+//      shaderTexts[1][1] = stringifyShader("../shaders/mainV.glsl");
+//      if(
+//          strcmp(shaderTexts[0][0], shaderTexts[0][1]) ||
+//          strcmp(shaderTexts[1][0], shaderTexts[1][1])
+//          ){
+//        cout << "took " << time(NULL) - fileChanged << "ms ("<<frameCounter<<" frames) INLINE"<<endl;
+//
+//        reloadShadersAndStartWatcher(&shaderProgram, &handleShaderRefresh);
+//        glUseProgram(shaderProgram);
+//
+//        if(!FindNextChangeNotification(handleShaderRefresh)){
+//          cout <<  "ERROR INLINE: Error setting handler" << endl;
+//          cout << GetLastError();
+//        };
+//
+//        delete shaderTexts[0][0];
+//        delete shaderTexts[1][0];
+//        shaderTexts[0][0] = shaderTexts[0][1];
+//        shaderTexts[1][0] = shaderTexts[1][1];
+//
+//        shaderChanged = false;
+//      }
+//      frameCounter++;
+//    }
 
 
 
@@ -175,37 +179,13 @@ int main() {
   }
 
   // CLEANUP
-  FindCloseChangeNotification(handleShaderRefresh);
   glfwTerminate();
 
   return 0;
 }
 
-GLchar *stringifyShader(const char *shaderFile) {
-  ifstream bootfile;
-  bootfile.open(shaderFile, ifstream::in);
-  // Calculate file size
-  unsigned long fileSize;
-  bootfile.seekg(0, ios::end);
-  fileSize = bootfile.tellg();
-  // Reset cursor
-  bootfile.seekg(ios::beg);
-
-  GLchar *ShaderText = new char[fileSize + 1];
-  unsigned int fileCursor = 0;
-  while(bootfile.good()){
-    ShaderText[fileCursor] = (GLchar) bootfile.get();
-    if (!bootfile.eof()) fileCursor++;
-  }
-  ShaderText[fileCursor] = '\0';
-  bootfile.close();
-
-  return ShaderText;
-}
-
-const char *shaderRelativePath= "\\..\\shaders";
 HANDLE reloadShadersAndStartWatcher(GLuint *shaderProgramId, HANDLE *shaderModificationHandler) {
-
+  const char *shaderRelativePath= "..\\shaders";
   unsigned shaderDirLength = GetCurrentDirectory(0, NULL);
   unsigned shaderRelativePathLength = strlen(shaderRelativePath);
   GLchar *shaderDir = new char[ shaderDirLength + shaderRelativePathLength ];
@@ -217,7 +197,7 @@ HANDLE reloadShadersAndStartWatcher(GLuint *shaderProgramId, HANDLE *shaderModif
 
   if(*shaderModificationHandler){
     if(!FindNextChangeNotification(*shaderModificationHandler)){
-      cout <<  "ERROR INLINE: Error setting handler" << endl;
+      cout <<  "ERROR INLINE: Error setting handler INLINE" << endl;
       cout << GetLastError() << endl;
     };
   }else{
@@ -228,7 +208,7 @@ HANDLE reloadShadersAndStartWatcher(GLuint *shaderProgramId, HANDLE *shaderModif
 
     if (*shaderModificationHandler == INVALID_HANDLE_VALUE)
     {
-      cout <<  "ERROR INLINE: Error setting handler" << endl;
+      cout <<  "ERROR INLINE: Error setting handler INLINE" << endl;
       cout << GetLastError() << endl;
     }
   }

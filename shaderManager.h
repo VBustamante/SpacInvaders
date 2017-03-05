@@ -6,15 +6,21 @@
 #define SPACINVADERS_SHADERMANAGER_H
 
 struct Shader{
+  GLuint id = 0;
   char *text;
 };
 
 struct ShaderProgram{
-    GLuint id;
+    GLuint id = 0;
     char *name;
+    Shader vertexShader;
+    Shader fragmentShader;
 };
 
-void shaderLoad();
-void shaderHotLoad(Shader[]);
+
+void setShaderProgramName(ShaderProgram *sp, const char *name);
+GLchar *stringifyShader(const char *shaderName, const char *shaderType);
+void shaderLoad(ShaderProgram[]);
+void shaderHotLoad(ShaderProgram[]);
 
 #endif //SPACINVADERS_SHADERMANAGER_H
