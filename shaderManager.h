@@ -7,12 +7,12 @@
 
 struct Shader{
   GLuint id = 0;
-  char *text;
+  char *text = NULL;
 };
 
 struct ShaderProgram{
     GLuint id = 0;
-    char *name;
+    char *name = NULL;
     Shader vertexShader;
     Shader fragmentShader;
 };
