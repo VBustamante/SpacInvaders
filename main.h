@@ -8,6 +8,7 @@
 enum{
     shaderProgramMain,
     shaderProgramFont,
+    shaderProgramVector,
     shaderProgramCount
 };
 

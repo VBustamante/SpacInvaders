@@ -22,5 +22,8 @@ void setShaderProgramName(ShaderProgram *sp, const char *name);
 GLchar *stringifyShader(const char *shaderName, const char *shaderType);
 void shaderLoad(ShaderProgram[]);
 void shaderHotLoad(ShaderProgram[]);
+GLint shaderGetUniform(GLuint program, const char *name);
+GLint shaderGetAttrib(GLuint program, const char *name);
+
 
 #endif //SPACINVADERS_SHADERMANAGER_H

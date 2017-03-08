@@ -40,7 +40,7 @@ void shaderLoad(ShaderProgram shaderSuite[]){
         GLchar *errorLog = new char[maxLength];
         glGetShaderInfoLog(vertexShaderId, maxLength, &maxLength, errorLog);
 
-        cerr << "ShaderError:"<< endl << errorLog;
+        cerr << shaderSuite[i].name<<"'s vertex shader error:"<< endl << errorLog;
         delete []errorLog;
         glDeleteShader(vertexShaderId);
         vertexShaderId = 0;
@@ -66,7 +66,7 @@ void shaderLoad(ShaderProgram shaderSuite[]){
         GLchar *errorLog = new char[maxLength];
         glGetShaderInfoLog(fragmentShaderId, maxLength, &maxLength, errorLog);
 
-        cerr << "ShaderError:"<< endl << errorLog;
+        cerr << shaderSuite[i].name<<"'s fragment shader error:"<< endl << errorLog;
         delete []errorLog;
         glDeleteShader(fragmentShaderId);
         fragmentShaderId = 0;
@@ -107,7 +107,7 @@ void shaderHotLoad(ShaderProgram shaderSuite[]){
         shaderModificationHandler = FindFirstChangeNotification(
             shaderDir, //TODO Receive from build system
             FALSE, // Don't watch recursively
-            FILE_NOTIFY_CHANGE_SIZE);
+            FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_ACCESS | FILE_NOTIFY_CHANGE_FILE_NAME);
 
         if (shaderModificationHandler == INVALID_HANDLE_VALUE)
         {
@@ -132,20 +132,19 @@ void shaderHotLoad(ShaderProgram shaderSuite[]){
 
     for(int i =0; i < shaderProgramCount; i++){
       ShaderProgram *shaderProgram = &shaderSuite[i];
-      cout << "loading " << shaderSuite[i].name << endl;
       if(shaderProgram->vertexShader.id != 0){
-        cout << "Has vertex shader" << endl;
         GLchar *newShader = stringifyShader(shaderSuite[i].name, "V");
-        if(strcmp(shaderSuite[i].vertexShader.text, newShader)) anyFileChanged = true;
+        if(newShader == NULL) cout << "deleted "<< shaderProgram->name << "'s vertex shader" << endl;
+        if(newShader == NULL || strcmp(shaderSuite[i].vertexShader.text, newShader)) anyFileChanged = true;
       }
       if(shaderProgram->fragmentShader.id != 0){
-        cout << "Has fragment shader" << endl;
         GLchar *newShader = stringifyShader(shaderProgram->name, "F");
-        if(strcmp(shaderProgram->fragmentShader.text, newShader)) anyFileChanged = true;
+        if(newShader == NULL) cout << "deleted "<< shaderProgram->name << "'s fragment shader" << endl;
+        if(newShader == NULL || strcmp(shaderProgram->fragmentShader.text, newShader)) anyFileChanged = true;
       }
     }
 
-    if(anyFileChanged){// Check real change
+    if(anyFileChanged || frameCounter >= 10){// Check real change
 
       shaderLoad(shaderSuite);
 
@@ -159,6 +158,20 @@ void shaderHotLoad(ShaderProgram shaderSuite[]){
     }
     frameCounter++;
   }
+}
+
+GLint shaderGetAttrib(GLuint program, const char *name) {
+  GLint attribute = glGetAttribLocation(program, name);
+  if(attribute == -1)
+    fprintf(stderr, "Could not bind attribute %s\n", name);
+  return attribute;
+}
+
+GLint shaderGetUniform(GLuint program, const char *name) {
+  GLint uniform = glGetUniformLocation(program, name);
+  if(uniform == -1)
+    fprintf(stderr, "Could not bind uniform %s\n", name);
+  return uniform;
 }
 
 GLchar *stringifyShader(const char *shaderName, const char *shaderType){
