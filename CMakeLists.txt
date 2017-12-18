@@ -24,6 +24,9 @@ include_directories(libs/freetype-2.7/include)
 add_subdirectory(libs/gl3w-master)
 include_directories(libs/gl3w-master/include)
 
+add_subdirectory(libs/glm-0.9.9-a2)
+include_directories(libs/glm-0.9.9-a2/glm)
+
 # Windows Threading lib
 # include_directories(libs/mingw-std-threads-master)
 
@@ -36,7 +39,7 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 endif()
 
 
-set(SOURCE_FILES main.cpp shaderManager.cpp)
+set(SOURCE_FILES main.cpp shaderManager.cpp State.cpp)
 add_executable(SpacInvaders ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/resources/meta/Program.rc)
 
-target_link_libraries(SpacInvaders glfw ${GLFW_LIBRARIES} gl3w ${OPENGL_gl_LIBRARY} freetype)
+target_link_libraries(SpacInvaders glfw ${GLFW_LIBRARIES} gl3w ${OPENGL_gl_LIBRARY} freetype glm)

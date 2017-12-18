@@ -25,9 +25,9 @@ void shaderLoad(ShaderProgram shaderSuite[]){
 
     GLchar *vertexShader = stringifyShader(shaderSuite[i].name, "V");
     GLuint vertexShaderId = 0;
-    if(vertexShader != NULL){
+    if(vertexShader != nullptr){
       vertexShaderId = glCreateShader(GL_VERTEX_SHADER);
-      glShaderSource(vertexShaderId, 1, (const GLchar**) &vertexShader, NULL);
+      glShaderSource(vertexShaderId, 1, (const GLchar**) &vertexShader, nullptr);
       glCompileShader(vertexShaderId);
 
       GLint shaderCompilerStatus;
@@ -51,9 +51,9 @@ void shaderLoad(ShaderProgram shaderSuite[]){
 
     GLchar *fragmentShader = stringifyShader(shaderSuite[i].name, "F");
     GLuint fragmentShaderId = 0;
-    if(fragmentShader != NULL){
+    if(fragmentShader != nullptr){
       fragmentShaderId = glCreateShader(GL_FRAGMENT_SHADER);
-      glShaderSource(fragmentShaderId, 1, (const GLchar**) &fragmentShader, NULL);
+      glShaderSource(fragmentShaderId, 1, (const GLchar**) &fragmentShader, nullptr);
       glCompileShader(fragmentShaderId);
 
       GLint shaderCompilerStatus;
@@ -84,17 +84,18 @@ void shaderLoad(ShaderProgram shaderSuite[]){
   }
 }
 
-void shaderHotLoad(ShaderProgram shaderSuite[]){
-  static HANDLE shaderModificationHandler = NULL;
+bool shaderHotLoad(ShaderProgram shaderSuite[]){
+  static HANDLE shaderModificationHandler = nullptr;
   static bool shaderChangeNotified = false;
   static unsigned frameCounter = 0;
+  bool shaderChanged = shaderModificationHandler == nullptr;
 
   if(!shaderChangeNotified){
     {
       if(!shaderModificationHandler){
-        unsigned shaderDirLength = GetCurrentDirectory(0, NULL);
+        unsigned shaderDirLength = GetCurrentDirectory(0, nullptr);
         unsigned shaderRelativePathLength = strlen(shaderRelativePath);
-        GLchar *shaderDir = new char[ shaderDirLength + shaderRelativePathLength + 1];
+        auto *shaderDir = new char[ shaderDirLength + shaderRelativePathLength + 1];
         GetCurrentDirectory(shaderDirLength, shaderDir);
         shaderDir[shaderDirLength - 1] = '\\';
 
@@ -134,13 +135,13 @@ void shaderHotLoad(ShaderProgram shaderSuite[]){
       ShaderProgram *shaderProgram = &shaderSuite[i];
       if(shaderProgram->vertexShader.id != 0){
         GLchar *newShader = stringifyShader(shaderSuite[i].name, "V");
-        if(newShader == NULL) cout << "deleted "<< shaderProgram->name << "'s vertex shader" << endl;
-        if(newShader == NULL || strcmp(shaderSuite[i].vertexShader.text, newShader)) anyFileChanged = true;
+        if(newShader == nullptr) cout << "deleted "<< shaderProgram->name << "'s vertex shader" << endl;
+        if(newShader == nullptr || strcmp(shaderSuite[i].vertexShader.text, newShader) != 0) anyFileChanged = true;
       }
       if(shaderProgram->fragmentShader.id != 0){
         GLchar *newShader = stringifyShader(shaderProgram->name, "F");
-        if(newShader == NULL) cout << "deleted "<< shaderProgram->name << "'s fragment shader" << endl;
-        if(newShader == NULL || strcmp(shaderProgram->fragmentShader.text, newShader)) anyFileChanged = true;
+        if(newShader == nullptr) cout << "deleted "<< shaderProgram->name << "'s fragment shader" << endl;
+        if(newShader == nullptr || strcmp(shaderProgram->fragmentShader.text, newShader) != 0) anyFileChanged = true;
       }
     }
 
@@ -155,9 +156,11 @@ void shaderHotLoad(ShaderProgram shaderSuite[]){
         cout << GetLastError() << endl;
       };
       shaderChangeNotified = false;
+      shaderChanged = true;
     }
     frameCounter++;
   }
+  return shaderChanged;
 }
 
 GLint shaderGetAttrib(GLuint program, const char *name) {
@@ -176,7 +179,7 @@ GLint shaderGetUniform(GLuint program, const char *name) {
 
 GLchar *stringifyShader(const char *shaderName, const char *shaderType){
 
-  char *filePath = new char[strlen(shaderRelativePath) + 1 + strlen(shaderName) + strlen(shaderType) + 6];
+  auto *filePath = new char[strlen(shaderRelativePath) + 1 + strlen(shaderName) + strlen(shaderType) + 6];
   strcpy(filePath, shaderRelativePath);
   strcpy(&filePath[strlen(shaderRelativePath)], "\\");
   strcpy(&filePath[strlen(shaderRelativePath) + 1], shaderName);
@@ -188,7 +191,7 @@ GLchar *stringifyShader(const char *shaderName, const char *shaderType){
   file.open(filePath, ifstream::in);
   if(!file.good()){
     file.close();
-    return NULL;
+    return nullptr;
   }
   // Calculate file size
   unsigned long fileSize;
